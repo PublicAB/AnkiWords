@@ -26,11 +26,13 @@ dependencyResolutionManagement {
     // repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         // Aliyun mirrors first (direct connectivity in CN); original repos kept as fallback
+        // jitpack before google(): dl.google.com hangs in CN and a repo network error aborts
+        // the whole resolution, so unreachable fallbacks must come last
         maven(url = "https://maven.aliyun.com/repository/google")
         maven(url = "https://maven.aliyun.com/repository/public")
-        google()
-        mavenCentral()
         maven(url = "https://jitpack.io")
+        mavenCentral()
+        google()
     }
 }
 

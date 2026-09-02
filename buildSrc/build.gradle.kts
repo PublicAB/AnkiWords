@@ -9,11 +9,13 @@ plugins {
 
 repositories {
     // Aliyun mirrors first (direct connectivity in CN); original repos kept as fallback
+    // google()/gradlePluginPortal() last: dl.google.com hangs in CN and a repo network
+    // error aborts the whole resolution, so unreachable fallbacks must come last
     maven { url = uri("https://maven.aliyun.com/repository/google") }
     maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
     maven { url = uri("https://maven.aliyun.com/repository/public") }
-    google()
     mavenCentral()
+    google()
     gradlePluginPortal()
 }
 
