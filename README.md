@@ -1,120 +1,56 @@
-<p align="center">
-<img alt="" src="docs/graphics/logos/banner_readme.png"/>
-</p>
+# AnkiWords
 
-<a href="https://github.com/ankidroid/Anki-Android/releases"><img src="https://img.shields.io/github/v/release/ankidroid/Anki-Android" alt="release"/></a>
-<a href="https://github.com/ankidroid/Anki-Android/actions"><img src="https://img.shields.io/github/checks-status/ankidroid/Anki-Android/main?label=build" alt="build"/></a>
-<a href="https://opencollective.com/ankidroid"><img src="https://img.shields.io/opencollective/all/ankidroid" alt="Open Collective backers and sponsors"/></a>
-<a href="https://github.com/ankidroid/Anki-Android/issues"><img src="https://img.shields.io/github/commit-activity/m/ankidroid/Anki-Android" alt="commit-activity"/></a>
-<a href="https://github.com/ankidroid/Anki-Android/network/members"><img src="https://img.shields.io/github/forks/ankidroid/Anki-Android" alt="forks"/></a>
-<a href="https://github.com/ankidroid/Anki-Android/stargazers"><img src="https://img.shields.io/github/stars/ankidroid/Anki-Android" alt="stars"/></a>
-<a href="https://crowdin.com/project/ankidroid"><img src="https://badges.crowdin.net/ankidroid/localized.svg"></img></a>
-<a href="https://github.com/ankidroid/Anki-Android/graphs/contributors"><img src="https://img.shields.io/github/contributors/ankidroid/Anki-Android" alt="contributors"/></a>
-<a href="https://discord.gg/qjzcRTx"><img src="https://img.shields.io/discord/368267295601983490"></img></a>
-<a href="https://github.com/ankidroid/Anki-Android/blob/main/COPYING"><img src="https://img.shields.io/github/license/ankidroid/Anki-Android" alt="license"/></a>
+> **AnkiDroid 背单词定制版** —— 基于开源 [AnkiDroid](https://github.com/ankidroid/Anki-Android) 的间隔重复记忆应用，针对「背单词」场景做了体验优化。
 
-# AnkiDroid
-A semi-official port of the open source [Anki](https://apps.ankiweb.net/index.html) spaced repetition flashcard system to Android. Memorize anything with AnkiDroid!
+## 这是什么
 
-<img src="docs/graphics/logos/ankidroid_logo.png" align="right" width="40%" height="100%"></img>
+AnkiWords 是 [AnkiDroid](https://github.com/ankidroid/Anki-Android) 的一个定制分支（fork），保留原版全部能力，同时修复/优化了几个背单词时的高频痛点。
 
-### Features
+## 本仓库相对原版的改动
 
-<div style="display:flex;">
- 
-- Night mode
-- Whiteboard 
-- Progress widget
-- Detailed statistics
-- Syncing with AnkiWeb
-- Write answers (optional)
-- Text-to-speech integration
-- More than 10,000 premade decks
-- Spaced repetition (AI-optimized [FSRS algorithm](https://github.com/open-spaced-repetition))
-- Supported contents: text, images, sounds, MathJax
-- Add cards by intent from other applications like dictionaries
+### 1. 显示答案后也能自动播放发音
 
-</div>
+**痛点**：很多单词卡的发音只挂在正面，点「显示答案」后就不再自动发音，背单词时很别扭。
 
-Install
----------
-<div style="display:flex;">
+**改动**：答案面自动播放时，如果答案面没有音频、而正面有音频（典型的单词卡发音场景），自动回退到正面音频播放。新旧两套复习界面均生效。
 
-<a href="https://play.google.com/store/apps/details?id=com.ichi2.anki&utm_source=global_co&utm_medium=prtnr&utm_content=Mar2515&utm_campaign=PartBadge&pcampaignid=MKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1">
-    <img alt="Get it on Google Play" height="80"
-        src="docs/graphics/logos/google-badge.png" /></a>
+**涉及文件**：
 
-<a href="https://f-droid.org/repository/browse/?fdid=com.ichi2.anki">
-    <img alt="Get it on F-Droid" height="80"
-        src="docs/graphics/logos/f-droid-badge.png"></a>
+- `AnkiDroid/src/main/java/com/ichi2/anki/cardviewer/CardMediaPlayer.kt`
+- `AnkiDroid/src/main/java/com/ichi2/anki/AbstractFlashcardViewer.kt`
 
-<a href="http://apps.obtainium.imranr.dev/redirect.html?r=obtainium://add/https://github.com/ankidroid/Anki-Android">
-    <img alt="Get it on Obtainium" height="80"
-        src="https://github.com/user-attachments/assets/713d71c5-3dec-4ec4-a3f2-8d28d025a9c6"/></a>
+### 2. 底部答案按钮默认放大 2 倍
 
-</div>
+**痛点**：复习界面底部「显示答案 / 重来 / 困难 / 良好 / 简单」按钮偏小，容易误触。
 
-Signing certificate fingerprint to [verify](https://developer.android.com/studio/command-line/apksigner#usage-verify) the APK:
-```
-SHA-256: 2071534f0f4b5e54ae952dd275d70da6e3459ee69909d2ab1b4843c4c5b21a45 
-SHA-1: f24e06a3657b190a12671100402df32d7b9b3d36
-```
+**改动**：按钮高度默认值由 100% 调整为 200%，新旧两套复习界面均已修改。
 
-Wiki
-----
-View [Wiki](https://github.com/ankidroid/Anki-Android/wiki)
+**涉及文件**：
 
-Help
-----
-Check the [user manual](https://docs.ankidroid.org/) and the wiki for usage instructions. See the [help page](https://docs.ankidroid.org/help.html) 
-for how to submit a bug report or contact a project member, etc.
+- `AnkiDroid/src/main/java/com/ichi2/anki/settings/Prefs.kt`
 
-Contribute
-----------
-You can contribute to AnkiDroid by beta testing, translating, or submitting code. 
-See the [contribution wiki page](https://github.com/ankidroid/Anki-Android/wiki/Contributing) for more info.
+> 注意：默认值只对「全新安装 / 清除应用数据」生效；已在使用的安装包可在「设置 → 无障碍 → Button size」手动调整。
 
-Join Us On
-----------
+### 3. 国内镜像加速依赖下载（构建优化）
 
-<a href="https://discord.gg/qjzcRTx"><img src="docs/graphics/logos/discord_logo_color.svg" height="46px"/></a>
-<a href="https://www.reddit.com/r/Anki"><img src="docs/graphics/logos/reddit_logo_color.png" height="50px"/></a>
-<a href="https://www.facebook.com/AnkiDroid/"><img src="docs/graphics/logos/facebook_logo_color.png" height="50px"/></a>
-<a href="https://x.com/ankidroid"><img src="docs/graphics/logos/twitter_logo.png" height="50px"/></a>
-<a href="https://forums.ankiweb.net/"><img src="/docs/graphics/logos/anki_forums_logo.png" height="50px"/></a>
+Gradle 仓库加入国内镜像（阿里云 / 腾讯），方便国内网络拉取依赖，加速构建。
 
-## Credits
-<!--- Do not rename this section. AnkiDroid contains a deep link to the section
-header - see https://github.com/ankidroid/Anki-Android/pull/11803 --->
+## 核心功能（继承自 AnkiDroid）
 
-### Code Contributors
+- **自定义单词卡**：自建笔记类型、字段与卡片模板，自由添加单词、释义、音标、发音、例句、图片等内容
+- **间隔重复**：AI 优化的 [FSRS 算法](https://github.com/open-spaced-repetition)，科学安排复习节奏
+- **自动播放音频**：发音次数可设置，配合本项目的「显示答案后自动发音」体验更顺
+- **发音**：文本转语音（TTS）+ 内置音频
+- 夜间模式、白板、学习统计、AnkiWeb 云同步
+- 支持文本 / 图片 / 音频 / MathJax 公式
+- 支持从词典等其他应用分享导入生词
 
-Thanks to these awesome code contributors who keep this project going
+## 构建
 
-<a href="https://github.com/ankidroid/Anki-Android/graphs/contributors"><img src="https://opencollective.com/ankidroid/contributors.svg?width=890&button=false" /></a>
+构建方式与原版 AnkiDroid 一致，详见[原仓库文档](https://github.com/ankidroid/Anki-Android)。
 
-### [Sponsors](https://opencollective.com/ankidroid#sponsor)
-<a href="https://opencollective.com/ankidroid#sponsor" target="_blank">
-  <img alt="AnkiDroid Sponsors" src="https://opencollective.com/Ankidroid/sponsors.svg?width=890" />
-</a>
+## 许可证 & 致谢
 
-### [Backers](https://opencollective.com/ankidroid#backer)
+本项目是 [AnkiDroid](https://github.com/ankidroid/Anki-Android) 的衍生作品，遵循 [GPL-3.0](COPYING) 许可证。
 
-A big thank you to each of our backers 🙏
-<a href="https://opencollective.com/Ankidroid#backers" target="_blank"><img width=110 src="https://opencollective.com/Ankidroid/backers/badge.svg?"></a>
-
-<p>Your generous donations mean the world to us, and we can't express our gratitude enough. Your support fuels our mission and helps us make a real difference</p>
-
-<a href="https://opencollective.com/Ankidroid/donate" target="_blank">
-  <img alt="Donate to AnkiDroid" src="https://opencollective.com/Ankidroid/donate/button@2x.png?color=blue" width=200 />
-</a>
-
-### [Translators](https://crowdin.com/project/ankidroid/activity-stream)
-
-Thanks to our 1400 translators, for allowing us to be available, partially or totally, in 99 languages as of July 2022.
-
-License
--------
-* [GPL-3.0 License](https://github.com/ankidroid/Anki-Android/blob/main/COPYING)
-* [AGPL-3.0 License](https://github.com/ankitects/anki/blob/main/LICENSE) for some part of the back-end
-* [LGPL-3.0 License](https://github.com/ankidroid/Anki-Android/blob/main/api/COPYING.LESSER) for the AnkiDroid API
+感谢 AnkiDroid 与 Anki 团队的开源贡献。
