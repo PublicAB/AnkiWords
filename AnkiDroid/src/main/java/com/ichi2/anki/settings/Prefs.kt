@@ -339,7 +339,7 @@ open class PrefsRepository(
     val hideHardAndEasyButtons by booleanPref(R.string.hide_hard_and_easy_key, defaultValue = false)
 
     val doubleTapInterval by intPref(R.string.double_tap_timeout_pref_key, defaultValue = 200)
-    val newStudyScreenAnswerButtonSize by intPref(R.string.answer_button_size_pref_key, defaultValue = 100)
+    val newStudyScreenAnswerButtonSize by intPref(R.string.answer_button_size_pref_key, defaultValue = 200)
 
     val swipeSensitivity: Float
         get() = getInt(R.string.pref_swipe_sensitivity_key, 100) / 100F
@@ -376,7 +376,7 @@ open class PrefsRepository(
     //endregion
     // ************************************** Accessibility ************************************* //
 
-    val answerButtonsSize: Int by intPref(R.string.answer_button_size_preference, 100)
+    val answerButtonsSize: Int by intPref(R.string.answer_button_size_preference, 200)
     val cardZoom: Int by intPref(R.string.card_zoom_preference, 100)
     override val removeAppAnimations by booleanPref(R.string.safe_display_key, defaultValue = false)
 
