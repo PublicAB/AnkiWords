@@ -185,9 +185,15 @@ class CardMediaPlayer : Closeable {
     }
 
     suspend fun autoplayAllForSide(cardSide: CardSide) {
-        if (config?.autoplay == true) {
-            playAllForSide(cardSide)
-        }
+        if (config?.autoplay != true) return
+        // 答案面自动播放时，若答案面无音频而问题面有（如单词卡发音仅在正面），回退播放问题面音频
+        val sideToPlay =
+            if (cardSide == CardSide.ANSWER && answerAvTags.isEmpty() && questionAvTags.isNotEmpty()) {
+                CardSide.QUESTION
+            } else {
+                cardSide
+            }
+        playAllForSide(sideToPlay)
     }
 
     suspend fun playAllForSide(cardSide: CardSide) {
