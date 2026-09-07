@@ -82,6 +82,39 @@
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 
+        <LinearLayout
+            android:id="@+id/study_progress_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="@dimen/reviewer_side_margin"
+            android:paddingTop="2dp"
+            android:paddingBottom="6dp">
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/study_progress_bar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="10000"
+                app:trackThickness="6dp"
+                app:trackCornerRadius="3dp"
+                app:indicatorColor="?attr/colorPrimary"
+                app:trackColor="?attr/colorControlHighlight" />
+
+            <TextView
+                android:id="@+id/study_progress_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="0.00%"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:fontFamily="monospace"
+                tools:text="42.86%" />
+        </LinearLayout>
+
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/web_view_container"
             style="@style/CardView.ViewerStyle"

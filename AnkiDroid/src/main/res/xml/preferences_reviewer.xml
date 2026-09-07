@@ -72,6 +72,12 @@
             android:icon="@drawable/ic_play_circle_white"
             />
 
+        <SwitchPreferenceCompat
+            android:key="@string/hide_question_text_key"
+            android:title="@string/hide_question_text"
+            android:defaultValue="false"
+            />
+
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/audio_category">

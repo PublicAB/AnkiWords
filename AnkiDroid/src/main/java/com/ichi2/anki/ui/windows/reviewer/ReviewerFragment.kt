@@ -3,6 +3,7 @@
 
 package com.ichi2.anki.ui.windows.reviewer
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -11,6 +12,7 @@ import android.view.KeyEvent
 import android.view.MenuItem
 import android.view.View
 import android.view.WindowManager
+import android.view.animation.DecelerateInterpolator
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
@@ -89,6 +91,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.reflect.jvm.jvmName
@@ -108,6 +111,8 @@ class ReviewerFragment :
     private var shakeDetector: AnkiShakeDetector? = null
     private val whiteboardFragment get() = childFragmentManager.findFragmentByTag(WhiteboardFragment::class.jvmName) as? WhiteboardFragment
     private val isBigScreen: Boolean get() = resources.configuration.smallestScreenWidthDp >= 720
+    private var progressAnimator: ValueAnimator? = null
+    private var currentProgress = 0f
 
     override val baseSnackbarBuilder: SnackbarBuilder = {
         anchorView =
@@ -163,6 +168,7 @@ class ReviewerFragment :
         setupTypeAnswer()
         setupAnswerButtons()
         setupCounts()
+        setupProgress()
         setupMenu()
         setupToolbarPosition()
         setupAnswerTimer()
@@ -172,6 +178,7 @@ class ReviewerFragment :
         setupActions()
         setupWhiteboard()
         setupTimebox()
+        setupHideQuestionText()
 
         viewModel.finishResultFlow.collectIn(lifecycleScope) { result ->
             requireActivity().run {
@@ -379,6 +386,43 @@ class ReviewerFragment :
         }
     }
 
+    /**
+     * When [Prefs.hideQuestionText] is enabled, hides the entire question content
+     * of a card so the user can rely on audio (autoplay / TTS) to judge recognition
+     * without seeing the words. Only the "Show Answer" button below remains visible.
+     * Answer side is restored to its normal state.
+     *
+     * Listens to [CardViewerViewModel.eval] instead of [CardViewerViewModel.showingAnswer]
+     * because showingAnswer is a StateFlow whose initial value (false) won't re-emit
+     * when the first card's showQuestion() also emits false — the collector would miss
+     * the very first injection. eval is a SharedFlow that fires on every _showQuestion
+     * and _showAnswer call, so the hide/restore CSS is always applied after the card
+     * content is injected into #qa.
+     */
+    private fun setupHideQuestionText() {
+        viewModel.eval.collectIn(lifecycleScope) { evalJs ->
+            if (!Prefs.hideQuestionText) return@collectIn
+            if (evalJs.startsWith("_showQuestion")) {
+                // Hide the entire #qa container: text, images, audio, SVG — everything.
+                // The "Show Answer" button lives outside #qa and stays visible.
+                webViewLayout.evaluateJavascript(
+                    "(function(){" +
+                        "var q=document.getElementById('qa');" +
+                        "if(q){q.style.display='none';}" +
+                        "})();",
+                )
+            } else if (evalJs.startsWith("_showAnswer")) {
+                // Restore #qa on answer side.
+                webViewLayout.evaluateJavascript(
+                    "(function(){" +
+                        "var q=document.getElementById('qa');" +
+                        "if(q){q.style.display='';}" +
+                        "})();",
+                )
+            }
+        }
+    }
+
     private fun setupCounts() {
         viewModel.countsFlow
             .flowWithLifecycle(lifecycle)
@@ -391,6 +435,31 @@ class ReviewerFragment :
                 binding.studyCounts.isVisible = false
             }
         }
+    }
+
+    private fun setupProgress() {
+        viewModel.progressFlow
+            .flowWithLifecycle(lifecycle)
+            .collectLatestIn(lifecycleScope) { target ->
+                animateProgressTo(target)
+            }
+    }
+
+    /** Animates both the progress bar and the percent text from the current value to [target]. */
+    private fun animateProgressTo(target: Float) {
+        progressAnimator?.cancel()
+        progressAnimator =
+            ValueAnimator.ofFloat(currentProgress, target).apply {
+                duration = 600L
+                interpolator = DecelerateInterpolator()
+                addUpdateListener { animator ->
+                    val value = animator.animatedValue as Float
+                    currentProgress = value
+                    binding.studyProgressBar.setProgressCompat((value * 100).roundToInt(), false)
+                    binding.studyProgressText.text = String.format(Locale.US, "%.2f%%", value)
+                }
+                start()
+            }
     }
 
     private fun setupMenu() {

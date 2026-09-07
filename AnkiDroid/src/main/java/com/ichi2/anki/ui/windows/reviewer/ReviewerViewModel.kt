@@ -97,6 +97,10 @@ class ReviewerViewModel(
     val undoLabelFlow = MutableStateFlow<String?>(null)
     val redoLabelFlow = MutableStateFlow<String?>(null)
     val countsFlow = savedStateHandle.getMutableStateFlow(KEY_COUNTS, StudyCounts())
+
+    /** Study progress in percent (0..100): (initialTotal - remaining) / initialTotal */
+    val progressFlow = MutableStateFlow(0f)
+    private var initialTotal = 0
     val typeAnswerFlow = MutableStateFlow<TypeAnswer?>(null)
     val onTypedAnswerResultFlow = MutableSharedFlow<CompletableDeferred<String>>()
     val onCardUpdatedFlow = MutableSharedFlow<Unit>()
@@ -586,7 +590,13 @@ class ReviewerViewModel(
         loadAndPlayMedia(CardSide.QUESTION)
         canBuryNoteFlow.emit(isBuryNoteAvailable(card))
         canSuspendNoteFlow.emit(isSuspendNoteAvailable(card))
-        countsFlow.emit(StudyCounts(state))
+        val counts = StudyCounts(state)
+        countsFlow.emit(counts)
+        if (initialTotal == 0 && counts.total > 0) {
+            initialTotal = counts.total
+        }
+        val progress = if (initialTotal == 0) 0f else (initialTotal - counts.total) * 100f / initialTotal
+        progressFlow.emit(progress.coerceIn(0f, 100f))
     }
 
     override suspend fun typeAnsFilter(text: String): String {
