@@ -242,6 +242,17 @@ open class PrefsRepository(
 
     var lastSyncTime by longPref(R.string.last_sync_time_key, defaultValue = 0L)
 
+    /**
+     * The Anki 'day' (days since collection creation, respecting day rollover) on which
+     * an automatic sync last ran.
+     *
+     * Used to throttle the foreground automatic sync on app startup to once per day:
+     * the first launch of the day syncs, subsequent launches skip it.
+     *
+     * `-1` means no automatic sync has been recorded yet.
+     */
+    var lastAutoSyncDay by intPref(R.string.last_auto_sync_day_key, defaultValue = -1)
+
     val shouldFetchMedia: ShouldFetchMedia
         get() = getEnum(R.string.sync_fetch_media_key, ShouldFetchMedia.ALWAYS)
 

@@ -77,6 +77,7 @@ import com.google.android.material.snackbar.Snackbar
 import com.ichi2.anki.BottomNavController.NavigationItem
 import com.ichi2.anki.CollectionManager.TR
 import com.ichi2.anki.CollectionManager.withCol
+import com.ichi2.anki.CollectionManager.withOpenColOrNull
 import com.ichi2.anki.DeckPickerFloatingActionMenu.FloatingActionBarToggleListener
 import com.ichi2.anki.InitialActivity.StartupFailure
 import com.ichi2.anki.InitialActivity.StartupFailure.DBError
@@ -108,7 +109,6 @@ import com.ichi2.anki.common.destinations.navigate
 import com.ichi2.anki.common.destinations.toIntent
 import com.ichi2.anki.common.preferences.sharedPrefs
 import com.ichi2.anki.common.storage.CollectionHelper
-import com.ichi2.anki.common.time.TimeManager
 import com.ichi2.anki.common.utils.android.showThemedToast
 import com.ichi2.anki.common.utils.annotation.KotlinCleanup
 import com.ichi2.anki.compat.CompatHelper.Companion.getSerializableCompat
@@ -222,8 +222,6 @@ import kotlinx.coroutines.withContext
 import net.ankiweb.rsdroid.Translations
 import timber.log.Timber
 import java.io.File
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
 import com.ichi2.anki.common.android.R as CommonR
 
 /**
@@ -1468,6 +1466,11 @@ open class DeckPicker :
         if (resultCode == AbstractFlashcardViewer.RESULT_NO_MORE_CARDS) {
             CongratsPage.onReviewsCompleted(this, getColUnsafe.sched.totalCount() == 0)
             fragment?.refreshInterface()
+            // Finishing the day's reviews is a natural convergence point: the local
+            // collection just changed and is unlikely to change again today, so upload
+            // the changes in the background without interrupting the user.
+            // automaticSync() no-ops when there is nothing to sync.
+            launchCatchingTask { automaticSync(runInBackground = true) }
         }
     }
 
@@ -1533,6 +1536,11 @@ open class DeckPicker :
     /**
      * Performs a sync if the conditions are met, e.g. user is logged in, there are changes,
      * and auto sync is enabled.
+     *
+     * The foreground sync (startup) is throttled to once per Anki day: the first launch of
+     * the day converges with the server (pulling overnight changes from other devices);
+     * later launches skip it, as local data has not diverged in the meantime.
+     *
      * @param runInBackground whether the sync should be performed in the background or not
      * @return whether a sync was performed or not.
      */
@@ -1560,14 +1568,20 @@ open class DeckPicker :
             }
         }
 
-        fun syncIntervalPassed(): Boolean =
-            (TimeManager.time.intTimeMS() - Prefs.lastSyncTime) > AUTOMATIC_SYNC_MINIMAL_INTERVAL.inWholeMilliseconds
+        /**
+         * The current Anki 'day' (days since collection creation), which respects the day
+         * rollover hour. Used to record/read [Prefs.lastAutoSyncDay].
+         *
+         * `null` if the collection isn't open; the per-day throttle is then not applied.
+         */
+        val today: Int? = withOpenColOrNull { sched.today }
 
         when {
             !Prefs.isAutoSyncEnabled -> Timber.d("autoSync: not enabled")
             MeteredSyncPolicy.shouldBlock() -> Timber.d("autoSync: blocked by metered connection")
             !NetworkUtils.isOnline -> Timber.d("autoSync: offline")
-            !runInBackground && !syncIntervalPassed() -> Timber.d("autoSync: interval not passed")
+            !runInBackground && today != null && Prefs.lastAutoSyncDay == today ->
+                Timber.d("autoSync: already synced today")
             !isLoggedIn() -> Timber.d("autoSync: not logged in")
             !areThereChangesToSync() -> {
                 Timber.d("autoSync: no collection changes to sync. Syncing media if set")
@@ -1576,8 +1590,14 @@ open class DeckPicker :
                     SyncMediaWorker.start(this, auth)
                 }
                 setLastSyncTimeToNow()
+                // the per-day throttle only applies to the foreground startup sync,
+                // but recording it here also skips a redundant status check on relaunch
+                today?.let { Prefs.lastAutoSyncDay = it }
             }
             else -> {
+                // record the day as soon as a sync is started (not when it finishes), so a
+                // failed sync doesn't retry on every subsequent launch (see issue #19776)
+                today?.let { Prefs.lastAutoSyncDay = it }
                 if (runInBackground) {
                     Timber.i("autoSync: starting background")
                     val auth = syncAuth() ?: return false
@@ -2406,12 +2426,6 @@ open class DeckPicker :
         @VisibleForTesting
         const val REQUEST_STORAGE_PERMISSION = 0
 
-        /**
-         * Minimum delay between automatic syncs.
-         *
-         * Skips the automatic sync if this time has not elapsed.
-         */
-        private val AUTOMATIC_SYNC_MINIMAL_INTERVAL: Duration = 10.minutes
         private const val SWIPE_TO_SYNC_TRIGGER_DISTANCE = 400
 
         private const val PREF_DECK_PICKER_PANE_WEIGHT = "deckPickerPaneWeight"

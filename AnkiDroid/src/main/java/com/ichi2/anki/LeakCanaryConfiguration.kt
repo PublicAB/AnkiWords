@@ -51,7 +51,9 @@ object LeakCanaryConfiguration {
         if (!isInstalled) {
             manualInstall(application)
         }
-        // Show 'Leaks' app launcher. It has been removed by default via constants.xml.
-        showLeakDisplayActivityLauncherIcon(true)
+        // Keep the 'Leaks' app launcher icon hidden (also clears the enabled state persisted by an
+        // older install, which otherwise survives an app update). LeakCanary still detects leaks and
+        // reports them through notifications.
+        showLeakDisplayActivityLauncherIcon(false)
     }
 }
