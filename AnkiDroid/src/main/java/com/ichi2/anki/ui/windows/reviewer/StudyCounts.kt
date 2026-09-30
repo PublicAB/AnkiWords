@@ -41,4 +41,7 @@ data class StudyCounts(
     val learn: String get() = learnCount.toString()
     val review: String get() = reviewCount.toString()
     val total: Int get() = newCount + learnCount + reviewCount
+
+    /** Number of due review cards; used to lock the memory-rate denominator at session start */
+    val dueReviewCount: Int get() = reviewCount
 }

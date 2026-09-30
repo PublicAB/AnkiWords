@@ -118,6 +118,17 @@
         <item quantity="other">%1$d cards studied in %2$s</item>
     </plurals>
 
+    <!-- Again audio replay (study screen top-right toggle) -->
+    <string name="again_audio_replay_desc">Replay audio three times before advancing after Again</string>
+    <string name="again_audio_replay_enabled_toast">Replay audio on Again: ON</string>
+    <string name="again_audio_replay_disabled_toast">Replay audio on Again: OFF</string>
+
+    <!-- Session memory rate (remembered due-review cards / due-review count at session start) -->
+    <string name="memory_rate_initial">Retain 0%</string>
+    <string name="memory_rate_label">Retain %1$d%%</string>
+    <string name="memory_rate_session_complete_title">Session complete</string>
+    <string name="memory_rate_session_complete">Cards remembered this session: %1$d of %2$d (%3$d%%)</string>
+
     <!-- minutes used in '[studied in] x minutes' context, causing inflexion in some languages -->
     <plurals name="in_minutes">
         <item quantity="one">%1$d minute</item>

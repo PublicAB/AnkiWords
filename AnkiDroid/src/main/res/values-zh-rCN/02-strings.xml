@@ -113,6 +113,18 @@
     <plurals name="timebox_reached">
         <item quantity="other">在 %2$s 内学习了 %1$d 张卡片</item>
     </plurals>
+
+    <!-- Again audio replay (study screen top-right toggle) -->
+    <string name="again_audio_replay_desc">点「重来」后先重复播放三遍音频再进入下一张</string>
+    <string name="again_audio_replay_enabled_toast">重来重复播放音频：开</string>
+    <string name="again_audio_replay_disabled_toast">重来重复播放音频：关</string>
+
+    <!-- Session memory rate (remembered due-review cards / due-review count at session start) -->
+    <string name="memory_rate_initial">记 0%</string>
+    <string name="memory_rate_label">记 %1$d%%</string>
+    <string name="memory_rate_session_complete_title">本次复习完成</string>
+    <string name="memory_rate_session_complete">本次记住的单词：%2$d 个中的 %1$d 个（%3$d%%）</string>
+
     <!-- minutes used in \'[studied in] x minutes\' context, causing inflexion in some languages -->
     <plurals name="in_minutes">
         <item quantity="other">%1$d 分钟</item>

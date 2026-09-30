@@ -169,6 +169,9 @@ class ReviewerFragment :
         setupAnswerButtons()
         setupCounts()
         setupProgress()
+        setupMemoryRate()
+        setupAgainAudioReplayButton()
+        setupSessionComplete()
         setupMenu()
         setupToolbarPosition()
         setupAnswerTimer()
@@ -442,6 +445,68 @@ class ReviewerFragment :
             .flowWithLifecycle(lifecycle)
             .collectLatestIn(lifecycleScope) { target ->
                 animateProgressTo(target)
+            }
+    }
+
+    /**
+     * Top-right toggle for "replay audio three times before advancing after Again".
+     * Persisted in [Prefs.isAgainAudioReplayEnabled]; off = instant advance (default behaviour).
+     */
+    private fun setupAgainAudioReplayButton() {
+        val button = binding.againAudioReplayButton
+
+        fun renderState(enabled: Boolean) {
+            button.isSelected = enabled
+            button.alpha = if (enabled) 1f else 0.4f
+        }
+        renderState(Prefs.isAgainAudioReplayEnabled)
+        button.setOnClickListener {
+            val newValue = !Prefs.isAgainAudioReplayEnabled
+            Prefs.isAgainAudioReplayEnabled = newValue
+            renderState(newValue)
+            showSnackbar(
+                getString(
+                    if (newValue) R.string.again_audio_replay_enabled_toast else R.string.again_audio_replay_disabled_toast,
+                ),
+                duration = 500,
+            )
+        }
+    }
+
+    /** Top bar: session memory rate of due review cards (remembered / locked initial count) */
+    private fun setupMemoryRate() {
+        viewModel.memoryRateFlow
+            .flowWithLifecycle(lifecycle)
+            .collectLatestIn(lifecycleScope) { rate ->
+                binding.memoryRateText.text =
+                    if (rate == null) {
+                        getString(R.string.memory_rate_initial)
+                    } else {
+                        getString(R.string.memory_rate_label, rate.percent)
+                    }
+            }
+    }
+
+    /** Shows the session memory rate when the study queue is exhausted, then finishes */
+    private fun setupSessionComplete() {
+        viewModel.sessionCompleteFlow
+            .flowWithLifecycle(lifecycle)
+            .collectIn(lifecycleScope) { rate ->
+                AlertDialog.Builder(requireContext()).show {
+                    setTitle(R.string.memory_rate_session_complete_title)
+                    setMessage(
+                        getString(
+                            R.string.memory_rate_session_complete,
+                            rate.remembered,
+                            rate.initialTotal,
+                            rate.percent,
+                        ),
+                    )
+                    setPositiveButton(R.string.dialog_ok) { _, _ ->
+                        viewModel.finishSession()
+                    }
+                    setCancelable(false)
+                }
             }
     }
 

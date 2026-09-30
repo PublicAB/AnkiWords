@@ -196,6 +196,33 @@ class CardMediaPlayer : Closeable {
         playAllForSide(sideToPlay)
     }
 
+    /**
+     * Replays the card's audio after "Again" is tapped, [times] times per sound.
+     *
+     * Plays the answer side's audio, falling back to the question side when the
+     * answer side has no audio (single-word cards with pronunciation on the front).
+     *
+     * Unlike [autoplayAllForSide], this does not require autoplay to be enabled.
+     * Callers should restore [automaticPlaybackCount] afterwards
+     * (e.g. `automaticPlaybackCount = Prefs.audioAutoplayCount`).
+     */
+    suspend fun replayForAgain(times: Int) {
+        if (!isEnabled) return
+        automaticPlaybackCount = times
+        val sideToPlay =
+            if (answerAvTags.isEmpty() && questionAvTags.isNotEmpty()) {
+                CardSide.QUESTION
+            } else {
+                CardSide.ANSWER
+            }
+        playAllForSide(sideToPlay)
+    }
+
+    /** Suspends until the current playback (started via [playAllForSide] etc.) has finished */
+    suspend fun awaitPlaybackComplete() {
+        playAvTagsJob?.join()
+    }
+
     suspend fun playAllForSide(cardSide: CardSide) {
         if (!isEnabled) return
         playAvTagsJob =

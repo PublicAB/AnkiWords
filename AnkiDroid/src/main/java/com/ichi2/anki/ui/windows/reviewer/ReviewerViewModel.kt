@@ -30,6 +30,7 @@ import com.ichi2.anki.libanki.CardId
 import com.ichi2.anki.libanki.Collection
 import com.ichi2.anki.libanki.DeckId
 import com.ichi2.anki.libanki.NoteId
+import com.ichi2.anki.libanki.QueueType
 import com.ichi2.anki.libanki.redoLabel
 import com.ichi2.anki.libanki.sched.CurrentQueueState
 import com.ichi2.anki.libanki.undoLabel
@@ -49,6 +50,7 @@ import com.ichi2.anki.servicelayer.NoteService
 import com.ichi2.anki.servicelayer.isBuryNoteAvailable
 import com.ichi2.anki.servicelayer.isSuspendNoteAvailable
 import com.ichi2.anki.settings.Prefs
+import com.ichi2.anki.settings.PrefsRepository
 import com.ichi2.anki.tryRedo
 import com.ichi2.anki.tryUndo
 import com.ichi2.anki.ui.windows.reviewer.autoadvance.AnswerAction
@@ -101,6 +103,23 @@ class ReviewerViewModel(
     /** Study progress in percent (0..100): (initialTotal - remaining) / initialTotal */
     val progressFlow = MutableStateFlow(0f)
     private var initialTotal = 0
+
+    /**
+     * Session memory rate: remembered due-review cards / due-review count locked at session start.
+     *
+     * The denominator is captured once, when the first card of the session is loaded
+     * (the review count shrinks as cards are answered, so it can't be read on the fly).
+     * New cards and (re)learning cards are not counted; each due-review card is only
+     * counted on its first answer of the session (an "Again" sends it to the learning
+     * queue, where subsequent answers no longer match [QueueType.Rev]).
+     */
+    val memoryRateFlow = MutableStateFlow<MemoryRate?>(null)
+    private var initialReviewCount = 0
+    private var rememberedCount = 0
+
+    /** Emitted when the study queue is exhausted, so the UI can show the session memory rate */
+    val sessionCompleteFlow = MutableSharedFlow<MemoryRate>()
+    private var hasEmittedSessionComplete = false
     val typeAnswerFlow = MutableStateFlow<TypeAnswer?>(null)
     val onTypedAnswerResultFlow = MutableSharedFlow<CompletableDeferred<String>>()
     val onCardUpdatedFlow = MutableSharedFlow<Unit>()
@@ -126,6 +145,16 @@ class ReviewerViewModel(
     private val isHtmlTypeAnswerEnabled = repository.isHtmlTypeAnswerEnabled
     val answerTimer = AnswerTimer()
     private val actionsMutex = Mutex()
+
+    /**
+     * Generation counter for the delayed "Again" answer ([Prefs.isAgainAudioReplayEnabled]).
+     *
+     * When the study-screen toggle is on, tapping "Again" replays the audio
+     * [PrefsRepository.AGAIN_AUDIO_REPLAY_COUNT] times before actually answering.
+     * Any card change (next card, undo, bury, suspend...) bumps this counter, which
+     * invalidates a pending delayed answer so it can never land on the wrong card.
+     */
+    private var againAnswerGeneration = 0
 
     /**
      * A flag that determines if the SchedulingStates in CurrentQueueState are
@@ -506,10 +535,47 @@ class ReviewerViewModel(
         return ByteArray(0)
     }
 
+    /**
+     * Handles a tap on "Again" when [Prefs.isAgainAudioReplayEnabled] is on:
+     * replays the card's audio a few times, then answers the card.
+     *
+     * If the toggle is off, the card has no audio, or audio playback is disabled,
+     * the card is answered immediately (default AnkiDroid behaviour).
+     *
+     * The delayed answer is guarded by [againAnswerGeneration]: any card change
+     * (e.g. the user tapping another answer button mid-playback, or an undo)
+     * cancels the pending "Again" so it can't affect the next card.
+     */
+    private suspend fun answerAgainOrDelayAudio() {
+        val canReplay = Prefs.isAgainAudioReplayEnabled && cardMediaPlayer.isEnabled
+        if (!canReplay) {
+            answerCardInternal(Rating.AGAIN)
+            return
+        }
+
+        val generation = ++againAnswerGeneration
+        launchCatchingIO {
+            cardMediaPlayer.replayForAgain(PrefsRepository.AGAIN_AUDIO_REPLAY_COUNT)
+            cardMediaPlayer.awaitPlaybackComplete()
+            // restore the regular autoplay count for subsequent manual replays
+            cardMediaPlayer.automaticPlaybackCount = Prefs.audioAutoplayCount
+            if (generation != againAnswerGeneration) {
+                Timber.d("skipping delayed Again answer: card changed during replay")
+                return@launchCatchingIO
+            }
+            actionsMutex.withLock {
+                // re-check: the card may have changed while waiting for the lock
+                if (generation != againAnswerGeneration) return@withLock
+                answerCardInternal(Rating.AGAIN)
+            }
+        }
+    }
+
     private suspend fun answerCardInternal(rating: Rating) {
         Timber.v("ReviewerViewModel::answerCard")
         val state = queueState.await() ?: return
         val card = currentCard.await()
+        updateMemoryRate(card, rating)
         val answer =
             withCol {
                 sched.answerCard(
@@ -530,6 +596,38 @@ class ReviewerViewModel(
             onLeech(isSuspended)
         }
         updateCurrentCard()
+    }
+
+    /**
+     * Updates the session memory rate when a due review card is answered.
+     *
+     * Only cards that were in the review queue ([QueueType.Rev]) when answered are
+     * counted: they belong to the batch whose size was locked into
+     * [initialReviewCount] at session start. An "Again" moves the card to a
+     * learning queue, so its later answers are ignored — each card is scored at
+     * most once per session. "Hard", "Good" and "Easy" all count as remembered.
+     */
+    private suspend fun updateMemoryRate(
+        card: Card,
+        rating: Rating,
+    ) {
+        if (card.queue != QueueType.Rev) return
+        if (initialReviewCount <= 0) return
+
+        when (rating) {
+            Rating.HARD, Rating.GOOD, Rating.EASY -> rememberedCount++
+            Rating.AGAIN, Rating.UNRECOGNIZED -> {}
+        }
+        memoryRateFlow.emit(MemoryRate(rememberedCount, initialReviewCount))
+    }
+
+    /** Called after the session-complete dialog is dismissed, to finish the study screen */
+    fun finishSession() {
+        if (hasEmittedSessionComplete) {
+            launchCatchingIO {
+                finishResultFlow.emit(RESULT_NO_MORE_CARDS)
+            }
+        }
     }
 
     // https://github.com/ankitects/anki/blob/da907053460e2b78c31199f97bbea3cf3600f0c2/qt/aqt/reviewer.py#L954
@@ -565,6 +663,8 @@ class ReviewerViewModel(
 
     private suspend fun updateCurrentCard() {
         Timber.v("ReviewerViewModel::updateCurrentCard")
+        // any card change invalidates a pending delayed "Again" answer
+        againAnswerGeneration++
         queueState =
             asyncIO {
                 withCol {
@@ -573,6 +673,14 @@ class ReviewerViewModel(
             }
         val state = queueState.await()
         if (state == null) {
+            val memoryRate = memoryRateFlow.value
+            if (!hasEmittedSessionComplete && memoryRate != null && memoryRate.initialTotal > 0) {
+                // show the session memory rate before finishing; the UI calls
+                // finishSession() once the dialog is dismissed
+                hasEmittedSessionComplete = true
+                sessionCompleteFlow.emit(memoryRate)
+                return
+            }
             finishResultFlow.emit(RESULT_NO_MORE_CARDS)
             return
         }
@@ -594,6 +702,12 @@ class ReviewerViewModel(
         countsFlow.emit(counts)
         if (initialTotal == 0 && counts.total > 0) {
             initialTotal = counts.total
+        }
+        // lock the memory-rate denominator once, at session start:
+        // the review count shrinks as cards are answered, so it must be snapshotted
+        if (initialReviewCount == 0 && counts.dueReviewCount > 0) {
+            initialReviewCount = counts.dueReviewCount
+            memoryRateFlow.emit(MemoryRate(rememberedCount, initialReviewCount))
         }
         val progress = if (initialTotal == 0) 0f else (initialTotal - counts.total) * 100f / initialTotal
         progressFlow.emit(progress.coerceIn(0f, 100f))
@@ -737,7 +851,7 @@ class ReviewerViewModel(
                     ViewerAction.TOGGLE_FLAG_TURQUOISE -> toggleFlag(Flag.TURQUOISE)
                     ViewerAction.TOGGLE_FLAG_PURPLE -> toggleFlag(Flag.PURPLE)
                     ViewerAction.SHOW_ANSWER -> if (!showingAnswer.value) showAnswerInternal()
-                    ViewerAction.ANSWER_AGAIN -> answerCardInternal(Rating.AGAIN)
+                    ViewerAction.ANSWER_AGAIN -> answerAgainOrDelayAudio()
                     ViewerAction.ANSWER_HARD -> answerCardInternal(Rating.HARD)
                     ViewerAction.ANSWER_GOOD -> answerCardInternal(Rating.GOOD)
                     ViewerAction.ANSWER_EASY -> answerCardInternal(Rating.EASY)
@@ -832,4 +946,14 @@ class ReviewerViewModel(
         private const val KEY_PREVIOUS_CARD_ID = "key_previous_card_id"
         private const val KEY_COUNTS = "counts"
     }
+}
+
+/** Session memory rate for due review cards: [remembered] / [initialTotal] */
+data class MemoryRate(
+    val remembered: Int,
+    val initialTotal: Int,
+) {
+    /** Memory rate in percent (0..100), rounded; 0 when the session had no due review cards */
+    val percent: Int
+        get() = if (initialTotal <= 0) 0 else (remembered * 100 / initialTotal)
 }

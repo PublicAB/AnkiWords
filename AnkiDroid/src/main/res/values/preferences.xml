@@ -273,6 +273,7 @@
     <string name="reviewer_frame_style_key">reviewerFrameStyle</string>
     <string name="reviewer_toolbar_position_key">reviewerToolbarPosition</string>
     <string name="audio_autoplay_count_key">audioAutoplayCount</string>
+    <string name="again_audio_replay_key">againAudioReplay</string>
 
     <!-- Onboarding -->
     <string name="internet_permission_requested_key">internetPermissionRequested</string>

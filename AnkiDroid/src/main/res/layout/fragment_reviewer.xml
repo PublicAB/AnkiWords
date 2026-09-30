@@ -70,13 +70,24 @@
                 app:barrierDirection="end"
                 app:constraint_referenced_ids="study_counts, timer"/>
 
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/again_audio_replay_button"
+                style="?actionButtonStyle"
+                android:layout_width="?minTouchTargetSize"
+                android:layout_height="?actionBarSize"
+                android:contentDescription="@string/again_audio_replay_desc"
+                android:src="@drawable/ic_replay"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toStartOf="@id/reviewer_menu_view"
+                app:layout_constraintTop_toTopOf="parent" />
+
             <com.ichi2.anki.preferences.reviewer.ReviewerMenuView
                 android:id="@+id/reviewer_menu_view"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toEndOf="@id/counts_barrier"
+                app:layout_constraintStart_toEndOf="@id/again_audio_replay_button"
                 app:layout_constraintTop_toTopOf="parent"
                 android:layout_marginStart="12dp"/>
 
@@ -113,6 +124,17 @@
                 android:textColor="?android:attr/textColorSecondary"
                 android:fontFamily="monospace"
                 tools:text="42.86%" />
+
+            <TextView
+                android:id="@+id/memory_rate_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="@string/memory_rate_initial"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:fontFamily="monospace"
+                tools:text="记 42%" />
         </LinearLayout>
 
         <com.google.android.material.card.MaterialCardView

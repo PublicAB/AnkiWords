@@ -363,6 +363,12 @@ open class PrefsRepository(
     val audioAutoplayCount: Int
         get() = getString(R.string.audio_autoplay_count_key, "1")?.toIntOrNull()?.coerceIn(1, MAX_AUDIO_AUTOPLAY_COUNT) ?: 1
 
+    /**
+     * When enabled, tapping "Again" replays the card's audio [AGAIN_AUDIO_REPLAY_COUNT] times
+     * before advancing to the next card. Toggled from the study screen top-right button.
+     */
+    var isAgainAudioReplayEnabled by booleanPref(R.string.again_audio_replay_key, defaultValue = false)
+
     var frameStyle: FrameStyle by enumPref(R.string.reviewer_frame_style_key, FrameStyle.CARD)
     val hideSystemBars: HideSystemBars by enumPref(R.string.hide_system_bars_key, HideSystemBars.NONE)
     var toolbarPosition: ToolbarPosition by enumPref(R.string.reviewer_toolbar_position_key, ToolbarPosition.TOP)
@@ -446,5 +452,8 @@ open class PrefsRepository(
 
         /** Sanity cap for [audioAutoplayCount] to avoid absurd values */
         private const val MAX_AUDIO_AUTOPLAY_COUNT = 999
+
+        /** How many times the audio is replayed when "Again" is tapped with [isAgainAudioReplayEnabled] on */
+        const val AGAIN_AUDIO_REPLAY_COUNT = 3
     }
 }
