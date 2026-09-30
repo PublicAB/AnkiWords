@@ -70,24 +70,13 @@
                 app:barrierDirection="end"
                 app:constraint_referenced_ids="study_counts, timer"/>
 
-            <androidx.appcompat.widget.AppCompatImageButton
-                android:id="@+id/again_audio_replay_button"
-                style="?actionButtonStyle"
-                android:layout_width="?minTouchTargetSize"
-                android:layout_height="?actionBarSize"
-                android:contentDescription="@string/again_audio_replay_desc"
-                android:src="@drawable/ic_replay"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toStartOf="@id/reviewer_menu_view"
-                app:layout_constraintTop_toTopOf="parent" />
-
             <com.ichi2.anki.preferences.reviewer.ReviewerMenuView
                 android:id="@+id/reviewer_menu_view"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toEndOf="@id/again_audio_replay_button"
+                app:layout_constraintStart_toEndOf="@id/counts_barrier"
                 app:layout_constraintTop_toTopOf="parent"
                 android:layout_marginStart="12dp"/>
 
@@ -135,6 +124,15 @@
                 android:textColor="?android:attr/textColorSecondary"
                 android:fontFamily="monospace"
                 tools:text="记 42%" />
+
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/again_audio_replay_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/again_audio_replay_desc"
+                android:src="@drawable/ic_replay" />
         </LinearLayout>
 
         <com.google.android.material.card.MaterialCardView
