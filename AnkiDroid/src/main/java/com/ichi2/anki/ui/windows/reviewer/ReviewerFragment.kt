@@ -171,7 +171,6 @@ class ReviewerFragment :
         setupProgress()
         setupMemoryRate()
         setupAgainAudioReplayButton()
-        setupSessionComplete()
         setupMenu()
         setupToolbarPosition()
         setupAnswerTimer()
@@ -184,8 +183,15 @@ class ReviewerFragment :
         setupHideQuestionText()
 
         viewModel.finishResultFlow.collectIn(lifecycleScope) { result ->
+            // The memory rate is appended to the snackbar the deck list shows when the
+            // reviews are finished (see CongratsPage.onReviewsCompleted), so it is passed
+            // back as an activity result instead of interrupting the user with a dialog.
+            val data =
+                Intent().apply {
+                    sessionMemoryRateText()?.let { putExtra(EXTRA_SESSION_MEMORY_RATE, it) }
+                }
             requireActivity().run {
-                setResult(result)
+                setResult(result, data)
                 finish()
             }
         }
@@ -368,6 +374,15 @@ class ReviewerFragment :
             onShowAnswerClicked = { viewModel.onShowAnswer() },
         )
 
+        // While "Again" replays the audio before answering, all answer buttons are disabled
+        // so no rating can be submitted during the replay. They are enabled again with the
+        // next card.
+        viewModel.isAgainReplayRunningFlow
+            .flowWithLifecycle(lifecycle)
+            .collectIn(lifecycleScope) { isReplaying ->
+                binding.answerArea.setAnswerButtonsEnabled(!isReplaying)
+            }
+
         binding.answerArea.setRelativeHeight(Prefs.newStudyScreenAnswerButtonSize)
 
         viewModel.answerButtonsNextTimeFlow
@@ -487,27 +502,19 @@ class ReviewerFragment :
             }
     }
 
-    /** Shows the session memory rate when the study queue is exhausted, then finishes */
-    private fun setupSessionComplete() {
-        viewModel.sessionCompleteFlow
-            .flowWithLifecycle(lifecycle)
-            .collectIn(lifecycleScope) { rate ->
-                AlertDialog.Builder(requireContext()).show {
-                    setTitle(R.string.memory_rate_session_complete_title)
-                    setMessage(
-                        getString(
-                            R.string.memory_rate_session_complete,
-                            rate.remembered,
-                            rate.initialTotal,
-                            rate.percent,
-                        ),
-                    )
-                    setPositiveButton(R.string.dialog_ok) { _, _ ->
-                        viewModel.finishSession()
-                    }
-                    setCancelable(false)
-                }
-            }
+    /**
+     * Session memory rate as appended to the deck-list snackbar once the reviews are
+     * finished, or `null` when the session had no due review cards.
+     */
+    private fun sessionMemoryRateText(): String? {
+        val rate = viewModel.memoryRateFlow.value ?: return null
+        if (rate.initialTotal <= 0) return null
+        return getString(
+            R.string.memory_rate_session_complete,
+            rate.remembered,
+            rate.initialTotal,
+            rate.percent,
+        )
     }
 
     /** Animates both the progress bar and the percent text from the current value to [target]. */
@@ -881,6 +888,9 @@ class ReviewerFragment :
     }
 
     companion object {
+        /** Activity-result extra carrying the session memory rate, appended by the deck list */
+        const val EXTRA_SESSION_MEMORY_RATE = "sessionMemoryRate"
+
         fun getIntent(context: Context): Intent = CardViewerActivity.getIntent(context, ReviewerFragment::class)
     }
 }

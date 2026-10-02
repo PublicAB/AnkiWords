@@ -181,6 +181,7 @@ import com.ichi2.anki.ui.animations.fadeIn
 import com.ichi2.anki.ui.animations.fadeOut
 import com.ichi2.anki.ui.internationalization.sentenceCase
 import com.ichi2.anki.ui.windows.permissions.PermissionsActivity
+import com.ichi2.anki.ui.windows.reviewer.ReviewerFragment
 import com.ichi2.anki.utils.Destination
 import com.ichi2.anki.utils.ShortcutUtils
 import com.ichi2.anki.utils.ext.dismissAllDialogFragments
@@ -341,7 +342,7 @@ open class DeckPicker :
         registerForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
             DeckPickerActivityResultCallback {
-                processReviewResults(it.resultCode)
+                processReviewResults(it)
             },
         )
 
@@ -1462,9 +1463,10 @@ open class DeckPicker :
         ExportDialogFragment.newInstance().show(supportFragmentManager, "exportDialog")
     }
 
-    private fun processReviewResults(resultCode: Int) {
-        if (resultCode == AbstractFlashcardViewer.RESULT_NO_MORE_CARDS) {
-            CongratsPage.onReviewsCompleted(this, getColUnsafe.sched.totalCount() == 0)
+    private fun processReviewResults(result: ActivityResult) {
+        if (result.resultCode == AbstractFlashcardViewer.RESULT_NO_MORE_CARDS) {
+            val memoryRate = result.data?.getStringExtra(ReviewerFragment.EXTRA_SESSION_MEMORY_RATE)
+            CongratsPage.onReviewsCompleted(this, getColUnsafe.sched.totalCount() == 0, memoryRate)
             fragment?.refreshInterface()
             // Finishing the day's reviews is a natural convergence point: the local
             // collection just changed and is unlikely to change again today, so upload

@@ -60,13 +60,16 @@ Gradle 仓库加入国内镜像（阿里云 / 腾讯），方便国内网络拉�
 
 **痛点**：背单词时点了「重来」（不认识），希望多听几遍发音加深印象，但原版点了就立刻跳下一张。
 
-**改动**：新学习界面右上角新增「循环」图标开关（暗=关 / 亮=开，状态持久保存）。开启后点「重来」时，当前面的音频会连播 **3 遍**（答案面没有音频时自动回退播放正面的），播完才切下一张；关闭时与原版行为一致，点了立刻切卡。播放途中点任何其他按钮会立即取消播放并执行新操作，不会把评分记错卡。
+**改动**：新学习界面右上角新增「循环」图标开关（暗=关 / 亮=开，状态持久保存）。开启后点「重来」时，当前面的音频会连播 **3 遍**（答案面没有音频时自动回退播放正面的），播完才切下一张；关闭时与原版行为一致，点了立刻切卡。
+
+点下「重来」后**四个评分按钮整排立即变灰并失效**，整个播放 + 判分过程中无法提交任何评分，切到下一张卡片时才恢复。播放卡死也有 60 秒兜底，按钮一定会恢复。
 
 **涉及文件**：
 
 - `AnkiDroid/src/main/java/com/ichi2/anki/cardviewer/CardMediaPlayer.kt`
 - `AnkiDroid/src/main/java/com/ichi2/anki/ui/windows/reviewer/ReviewerViewModel.kt`
 - `AnkiDroid/src/main/java/com/ichi2/anki/ui/windows/reviewer/ReviewerFragment.kt`
+- `AnkiDroid/src/main/java/com/ichi2/anki/ui/windows/reviewer/AnswerAreaView.kt`
 - `AnkiDroid/src/main/res/layout/fragment_reviewer.xml`
 - `AnkiDroid/src/main/java/com/ichi2/anki/settings/Prefs.kt`
 
@@ -79,13 +82,18 @@ Gradle 仓库加入国内镜像（阿里云 / 腾讯），方便国内网络拉�
 - 进入学习界面时锁定「到期复习数」作为分母（避免复习过程中计数递减的坑）；**新卡不参与统计**。
 - 到期复习卡**首次作答**计分：「良好」（及困难/简单）= 记住，「重来」= 忘记；答错掉进学习队列后再答对不重复计分。
 - 学习界面顶部进度条旁实时显示「记 xx%」。
-- 全部学完后弹窗显示本次记忆率（记住 n / 共 m）。
+- 用「返回」（撤销）撤回一次作答时，记忆率同步回退，不会只增不减。
+- 全部学完后不再弹窗打断，本次记忆率直接追加到牌组列表底部已有的「复习完成」提示里，过一会儿自动消失。
 
 **涉及文件**：
 
 - `AnkiDroid/src/main/java/com/ichi2/anki/ui/windows/reviewer/ReviewerViewModel.kt`
 - `AnkiDroid/src/main/java/com/ichi2/anki/ui/windows/reviewer/ReviewerFragment.kt`
+- `AnkiDroid/src/main/java/com/ichi2/anki/ui/windows/reviewer/AnswerAreaView.kt`
 - `AnkiDroid/src/main/java/com/ichi2/anki/ui/windows/reviewer/StudyCounts.kt`
+- `AnkiDroid/src/main/java/com/ichi2/anki/DeckPicker.kt`
+- `AnkiDroid/src/main/java/com/ichi2/anki/pages/CongratsPage.kt`
+- `AnkiDroid/src/main/java/com/ichi2/anki/Undo.kt`
 - `AnkiDroid/src/main/res/layout/fragment_reviewer.xml`
 
 ## 核心功能（继承自 AnkiDroid）

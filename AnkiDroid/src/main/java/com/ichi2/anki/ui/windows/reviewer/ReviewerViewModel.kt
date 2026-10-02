@@ -62,6 +62,7 @@ import com.ichi2.anki.utils.ext.cardStatsNoCardClean
 import com.ichi2.anki.utils.ext.flag
 import com.ichi2.anki.utils.ext.getLongOrNull
 import com.ichi2.anki.utils.ext.setUserFlagForCards
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -71,6 +72,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import org.intellij.lang.annotations.Language
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicBoolean
 import com.ichi2.anki.common.destinations.Destination as NavigateDestination
 
 class ReviewerViewModel(
@@ -115,11 +117,16 @@ class ReviewerViewModel(
      */
     val memoryRateFlow = MutableStateFlow<MemoryRate?>(null)
     private var initialReviewCount = 0
-    private var rememberedCount = 0
 
-    /** Emitted when the study queue is exhausted, so the UI can show the session memory rate */
-    val sessionCompleteFlow = MutableSharedFlow<MemoryRate>()
-    private var hasEmittedSessionComplete = false
+    /**
+     * Due-review cards scored as remembered during this session.
+     *
+     * Stored as a set rather than a plain counter so that undoing an answer can revoke
+     * exactly its own contribution — see [updateCurrentCard].
+     */
+    private val rememberedCardIds = mutableSetOf<CardId>()
+    private val rememberedCount: Int get() = rememberedCardIds.size
+
     val typeAnswerFlow = MutableStateFlow<TypeAnswer?>(null)
     val onTypedAnswerResultFlow = MutableSharedFlow<CompletableDeferred<String>>()
     val onCardUpdatedFlow = MutableSharedFlow<Unit>()
@@ -147,14 +154,22 @@ class ReviewerViewModel(
     private val actionsMutex = Mutex()
 
     /**
-     * Generation counter for the delayed "Again" answer ([Prefs.isAgainAudioReplayEnabled]).
+     * Set while a delayed "Again" answer ([Prefs.isAgainAudioReplayEnabled]) is replaying.
      *
      * When the study-screen toggle is on, tapping "Again" replays the audio
      * [PrefsRepository.AGAIN_AUDIO_REPLAY_COUNT] times before actually answering.
-     * Any card change (next card, undo, bury, suspend...) bumps this counter, which
-     * invalidates a pending delayed answer so it can never land on the wrong card.
+     * Repeated taps are ignored while a replay is running, so one "Again" never
+     * stacks several replays.
      */
-    private var againAnswerGeneration = 0
+    private val isAgainReplayRunning = AtomicBoolean(false)
+
+    /**
+     * Mirrors [isAgainReplayRunning] for the UI: while it is `true` all answer buttons are
+     * greyed out and cannot be tapped. It returns to `false` as soon as the next card is
+     * loaded (see [updateCurrentCard]), which is also when the answer buttons become usable
+     * again.
+     */
+    val isAgainReplayRunningFlow = MutableStateFlow(false)
 
     /**
      * A flag that determines if the SchedulingStates in CurrentQueueState are
@@ -422,7 +437,10 @@ class ReviewerViewModel(
 
     private suspend fun undo() {
         Timber.v("ReviewerViewModel::undo")
-        actionFeedbackFlow.emit(tryUndo())
+        // The card refresh is driven from here rather than from opExecuted, so the memory
+        // rate reliably revokes an undone answer's contribution exactly once.
+        actionFeedbackFlow.emit(tryUndo(handler = this))
+        updateCurrentCard()
     }
 
     private suspend fun redo() {
@@ -542,9 +560,14 @@ class ReviewerViewModel(
      * If the toggle is off, the card has no audio, or audio playback is disabled,
      * the card is answered immediately (default AnkiDroid behaviour).
      *
-     * The delayed answer is guarded by [againAnswerGeneration]: any card change
-     * (e.g. the user tapping another answer button mid-playback, or an undo)
-     * cancels the pending "Again" so it can't affect the next card.
+     * A tap while a replay is already running is ignored, so one "Again" never stacks
+     * several replays. The delayed answer is only applied when the same card is still on
+     * screen showing its answer, so answering (or undoing) during the replay can never be
+     * overridden. A timeout guarantees the answer lands even if the player never reports
+     * completion.
+     *
+     * All answer buttons are disabled for the whole replay ([isAgainReplayRunningFlow]) so
+     * no rating can be submitted while the audio is playing.
      */
     private suspend fun answerAgainOrDelayAudio() {
         val canReplay = Prefs.isAgainAudioReplayEnabled && cardMediaPlayer.isEnabled
@@ -552,23 +575,46 @@ class ReviewerViewModel(
             answerCardInternal(Rating.AGAIN)
             return
         }
+        if (!isAgainReplayRunning.compareAndSet(false, true)) return
+        isAgainReplayRunningFlow.value = true
 
-        val generation = ++againAnswerGeneration
+        val cardId = currentCard.await().id
         launchCatchingIO {
-            cardMediaPlayer.replayForAgain(PrefsRepository.AGAIN_AUDIO_REPLAY_COUNT)
-            cardMediaPlayer.awaitPlaybackComplete()
-            // restore the regular autoplay count for subsequent manual replays
-            cardMediaPlayer.automaticPlaybackCount = Prefs.audioAutoplayCount
-            if (generation != againAnswerGeneration) {
-                Timber.d("skipping delayed Again answer: card changed during replay")
-                return@launchCatchingIO
+            try {
+                cardMediaPlayer.replayForAgain(PrefsRepository.AGAIN_AUDIO_REPLAY_COUNT)
+                withTimeoutOrNull(AGAIN_AUDIO_REPLAY_TIMEOUT_MS) {
+                    cardMediaPlayer.awaitPlaybackComplete()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "failed to replay audio before answering Again")
+            } finally {
+                // restore the regular autoplay count for subsequent manual replays
+                cardMediaPlayer.automaticPlaybackCount = Prefs.audioAutoplayCount
             }
-            actionsMutex.withLock {
-                // re-check: the card may have changed while waiting for the lock
-                if (generation != againAnswerGeneration) return@withLock
-                answerCardInternal(Rating.AGAIN)
+            try {
+                actionsMutex.withLock {
+                    // the user may have answered or undone during the replay: only the card
+                    // this replay started for, still on its answer side, may be answered
+                    if (currentCard.await().id != cardId || !showingAnswer.value) {
+                        Timber.d("skipping delayed Again answer: card changed during replay")
+                        return@withLock
+                    }
+                    answerCardInternal(Rating.AGAIN)
+                }
+            } finally {
+                // The button stays disabled while the answer is saved and is re-enabled on the
+                // next card (updateCurrentCard). This also covers an answer that never landed.
+                setAgainReplayRunning(false)
             }
         }
+    }
+
+    /** Updates both the re-entrancy guard and the UI state of the delayed "Again" answer. */
+    private fun setAgainReplayRunning(running: Boolean) {
+        isAgainReplayRunning.set(running)
+        isAgainReplayRunningFlow.value = running
     }
 
     private suspend fun answerCardInternal(rating: Rating) {
@@ -615,19 +661,10 @@ class ReviewerViewModel(
         if (initialReviewCount <= 0) return
 
         when (rating) {
-            Rating.HARD, Rating.GOOD, Rating.EASY -> rememberedCount++
+            Rating.HARD, Rating.GOOD, Rating.EASY -> rememberedCardIds.add(card.id)
             Rating.AGAIN, Rating.UNRECOGNIZED -> {}
         }
         memoryRateFlow.emit(MemoryRate(rememberedCount, initialReviewCount))
-    }
-
-    /** Called after the session-complete dialog is dismissed, to finish the study screen */
-    fun finishSession() {
-        if (hasEmittedSessionComplete) {
-            launchCatchingIO {
-                finishResultFlow.emit(RESULT_NO_MORE_CARDS)
-            }
-        }
     }
 
     // https://github.com/ankitects/anki/blob/da907053460e2b78c31199f97bbea3cf3600f0c2/qt/aqt/reviewer.py#L954
@@ -663,8 +700,12 @@ class ReviewerViewModel(
 
     private suspend fun updateCurrentCard() {
         Timber.v("ReviewerViewModel::updateCurrentCard")
-        // any card change invalidates a pending delayed "Again" answer
-        againAnswerGeneration++
+        // A card change ends any delayed "Again" replay of the previous card: the answer
+        // buttons become usable again on the new card. Only the UI state is reset here — the
+        // re-entrancy guard
+        // is released by the replay itself, so a tap arriving while the answer is still being
+        // saved stays ignored.
+        isAgainReplayRunningFlow.value = false
         queueState =
             asyncIO {
                 withCol {
@@ -673,14 +714,8 @@ class ReviewerViewModel(
             }
         val state = queueState.await()
         if (state == null) {
-            val memoryRate = memoryRateFlow.value
-            if (!hasEmittedSessionComplete && memoryRate != null && memoryRate.initialTotal > 0) {
-                // show the session memory rate before finishing; the UI calls
-                // finishSession() once the dialog is dismissed
-                hasEmittedSessionComplete = true
-                sessionCompleteFlow.emit(memoryRate)
-                return
-            }
+            // the session memory rate is handed back to the deck list, which appends it
+            // to the snackbar it already shows when the reviews are finished
             finishResultFlow.emit(RESULT_NO_MORE_CARDS)
             return
         }
@@ -691,6 +726,14 @@ class ReviewerViewModel(
 
         val card = state.topCard
         currentCard = CompletableDeferred(card)
+        // A review card that was already scored and shows up in the review queue again can
+        // only have been undone: revoke its contribution so the rate follows "Undo".
+        if (initialReviewCount > 0 &&
+            card.queue == QueueType.Rev &&
+            rememberedCardIds.remove(card.id)
+        ) {
+            memoryRateFlow.emit(MemoryRate(rememberedCount, initialReviewCount))
+        }
         setupAnswerTimer(card)
         autoAdvance.onCardChange(card)
         onCardUpdatedFlow.emit(Unit) // must be before showQuestion()
@@ -945,6 +988,9 @@ class ReviewerViewModel(
     companion object {
         private const val KEY_PREVIOUS_CARD_ID = "key_previous_card_id"
         private const val KEY_COUNTS = "counts"
+
+        /** Upper bound for waiting on the "Again" replay, so a stuck player can never block the answer */
+        private const val AGAIN_AUDIO_REPLAY_TIMEOUT_MS = 60_000L
     }
 }
 

@@ -61,9 +61,29 @@ class AnswerAreaView : FrameLayout {
         if (isAnswerShown) {
             binding.showAnswerButton.visibility = INVISIBLE
             binding.answerButtonsLayout.visibility = VISIBLE
+            // A button pressed just before the area was hidden can keep its pressed visual
+            // state (which looks greyed out) once it is shown again: clear it explicitly.
+            for (index in 0 until binding.answerButtonsLayout.childCount) {
+                binding.answerButtonsLayout.getChildAt(index).isPressed = false
+            }
         } else {
             binding.showAnswerButton.visibility = VISIBLE
             binding.answerButtonsLayout.visibility = INVISIBLE
+        }
+    }
+
+    /**
+     * Greys out all answer buttons while an "Again" audio replay is running, so no
+     * rating can be submitted before the card moves on. Tapping is blocked by
+     * [android.view.View.isEnabled]; the alpha is needed because the buttons have an
+     * explicit background tint, which Material keeps unchanged in the disabled state.
+     */
+    fun setAnswerButtonsEnabled(enabled: Boolean) {
+        for (index in 0 until binding.answerButtonsLayout.childCount) {
+            binding.answerButtonsLayout.getChildAt(index).apply {
+                isEnabled = enabled
+                alpha = if (enabled) 1f else 0.45f
+            }
         }
     }
 

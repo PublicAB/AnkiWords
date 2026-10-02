@@ -26,9 +26,15 @@ import com.ichi2.anki.libanki.undoAvailable
 import com.ichi2.anki.observability.undoableOp
 import com.ichi2.anki.snackbar.showSnackbar
 
-suspend fun tryUndo(): String {
+/**
+ * Undoes the last undoable operation, if any.
+ *
+ * @param handler the initiator of the change, forwarded to the change subscribers so that a
+ * caller which handles the resulting update itself can recognise its own changes.
+ */
+suspend fun tryUndo(handler: Any? = null): String {
     val changes =
-        undoableOp {
+        undoableOp(handler = handler) {
             if (undoAvailable()) {
                 undo()
             } else {

@@ -180,6 +180,7 @@ class CongratsPage :
         fun onReviewsCompleted(
             activity: FragmentActivity,
             cardsInDeck: Boolean,
+            memoryRate: String? = null,
         ) {
             if (displayNewCongratsScreen(activity)) {
                 activity.startActivity(getIntent(activity))
@@ -190,12 +191,20 @@ class CongratsPage :
             if (cardsInDeck) {
                 activity.launchCatchingTask {
                     val message = getDeckFinishedMessage(activity)
-                    activity.showSnackbar(message)
+                    activity.showSnackbar(withMemoryRate(message, memoryRate))
                 }
             } else {
-                activity.showSnackbar(R.string.studyoptions_no_cards_due)
+                activity.showSnackbar(
+                    withMemoryRate(activity.getString(R.string.studyoptions_no_cards_due), memoryRate),
+                )
             }
         }
+
+        /** Appends the session memory rate to the "reviews finished" message, when there is one */
+        private fun withMemoryRate(
+            message: String,
+            memoryRate: String?,
+        ): String = if (memoryRate.isNullOrEmpty()) message else "$message\n$memoryRate"
 
         // based in https://github.com/ankitects/anki/blob/9b4dd54312de8798a3f2bee07892bb3a488d1f9b/ts/routes/congrats/lib.ts#L8C17-L8C34
         private suspend fun getDeckFinishedMessage(activity: FragmentActivity): String {
