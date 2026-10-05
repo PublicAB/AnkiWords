@@ -182,7 +182,11 @@ class CongratsPage :
             cardsInDeck: Boolean,
             memoryRate: String? = null,
         ) {
+            // 连续打卡提示：仅在完成今日全部任务（队列清空）时更新并展示，不打断用户、无需点击
+            val streakText = if (cardsInDeck) ReviewStreak.record(activity) else null
+
             if (displayNewCongratsScreen(activity)) {
+                streakText?.let { showThemedToast(activity, it, false) }
                 activity.startActivity(getIntent(activity))
                 return
             }
@@ -191,7 +195,7 @@ class CongratsPage :
             if (cardsInDeck) {
                 activity.launchCatchingTask {
                     val message = getDeckFinishedMessage(activity)
-                    activity.showSnackbar(withMemoryRate(message, memoryRate))
+                    activity.showSnackbar(withMemoryRate(message, memoryRate) + "\n" + streakText)
                 }
             } else {
                 activity.showSnackbar(

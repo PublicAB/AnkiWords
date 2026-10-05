@@ -95,6 +95,7 @@
     <string name="studyoptions_congrats_finished">恭喜！你已经完成了今天的学习任务。</string>
     <string name="studyoptions_congrats_next_due_in" comment="The param will be replaced with \'The next card will be ready in X time\'">牌组目前已完成！%s</string>
     <string name="studyoptions_no_cards_due">没有卡片待复习。</string>
+    <string name="review_streak_days">🔥 已连续打卡 %1$d 天</string>
     <string name="sd_card_not_mounted">未连接储存设备</string>
     <string name="button_sync" comment="Text of the sync button" maxLength="28">同步</string>
     <string name="cancel_sync_confirm" tools:ignore="UnusedResources">你想要取消同步吗？</string>
